@@ -73,6 +73,10 @@ timeout: '1200s'
 # PROJECT_NUMBER=$(gcloud projects describe cicd-placementapp-github --format='value(projectNumber)')
 # echo $PROJECT_NUMBER
 
+
+# (the gcloud run deploy command) was also likely to fail because the Compute Engine service account doesn't 
+# yet have the permissions to manage Cloud Run or act as a service account user.
+
 # # 1. Grant Cloud Run Admin role
 # gcloud projects add-iam-policy-binding cicd-placementapp-github \
 #     --member="serviceAccount:$PROJECT_NUMBER@cloudbuild.gserviceaccount.com" \
@@ -82,3 +86,44 @@ timeout: '1200s'
 # gcloud projects add-iam-policy-binding cicd-placementapp-github \
 #     --member="serviceAccount:$PROJECT_NUMBER@cloudbuild.gserviceaccount.com" \
 #     --role="roles/iam.serviceAccountUser"
+
+# 3. your Compute Engine Default Service Account (which Cloud Build is using as the execution identity) doesn't 
+# have permission to write logs.
+#  You can grant it the "Logging Log Writer" role to allow it to write logs to Cloud Logging.
+# gcloud projects add-iam-policy-binding cicd-placementapp-github \
+#     --member="serviceAccount:829933921570-compute@developer.gserviceaccount.com" \
+#     --role="roles/logging.logWriter"
+
+
+# the service account doesn't have the permission to upload (push) the image to your Artifact Registry repository.
+# To fix this once and for all, run these two commands to give both potential service accounts the Artifact Registry 
+# Administrator role:
+# 1. Grant permission to the Cloud Build service account
+# gcloud projects add-iam-policy-binding cicd-placementapp-github \
+#     --member="serviceAccount:829933921570@cloudbuild.gserviceaccount.com" \
+#     --role="roles/artifactregistry.repoAdmin"
+
+# # 2. Grant permission to the Compute Engine default service account
+# gcloud projects add-iam-policy-binding cicd-placementapp-github \
+#     --member="serviceAccount:829933921570-compute@developer.gserviceaccount.com" \
+#     --role="roles/artifactregistry.repoAdmin"
+
+# build is indeed using the Compute Engine default service account (829933921570-compute@developer.gserviceaccount.com), 
+# and it lacks the permissions to create or update the Cloud Run service.
+# Please run these two commands in your Cloud Shell to grant the final set of required permissions to that specific account:
+# 1. Grant Cloud Run Admin (to create/manage the service)
+# gcloud projects add-iam-policy-binding cicd-placementapp-github \
+#     --member="serviceAccount:829933921570-compute@developer.gserviceaccount.com" \
+#     --role="roles/run.admin"
+
+# 2. Grant Service Account User (to allow it to assign an identity to the Cloud Run service)
+# gcloud projects add-iam-policy-binding cicd-placementapp-github \
+#     --member="serviceAccount:829933921570-compute@developer.gserviceaccount.com" \
+#     --role="roles/iam.serviceAccountUser"
+
+# run.admin: This fixes the PERMISSION_DENIED error. 
+# It allows the account to check if the service placementapp exists and to create/update it. 
+
+# iam.serviceAccountUser: This is required for the final deployment, where Cloud Run 
+# needs to "act as" a service account to run your container.
+
