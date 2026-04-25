@@ -1,17 +1,23 @@
 steps:
-  # Pull the Docker image from Docker Hub
+  # 1. Pull the Docker image from Docker Hub
   - name: 'gcr.io/cloud-builders/docker'
     args: ['pull', '${_DOCKER_IMAGE}']
   
-  # Tag the image for Google Container Registry
+  # 2. Tag the image for Artifact Registry
+  # Format: [LOCATION]-docker.pkg.dev/[PROJECT_ID]/[REPO_NAME]/[IMAGE_NAME]:[TAG]
   - name: 'gcr.io/cloud-builders/docker'
-    args: ['tag', '${_DOCKER_IMAGE}', 'gcr.io/$PROJECT_ID/${_SERVICE_NAME}:$COMMIT_SHA']
+    args: 
+      - 'tag'
+      - '${_DOCKER_IMAGE}'
+      - 'us-central1-docker.pkg.dev/$PROJECT_ID/placementapp-repo/${_SERVICE_NAME}:$COMMIT_SHA'
   
-  # Push the image to Google Container Registry
+  # 3. Push the image to Artifact Registry
   - name: 'gcr.io/cloud-builders/docker'
-    args: ['push', 'gcr.io/$PROJECT_ID/${_SERVICE_NAME}:$COMMIT_SHA']
+    args: 
+      - 'push' 
+      - 'us-central1-docker.pkg.dev/$PROJECT_ID/placementapp-repo/${_SERVICE_NAME}:$COMMIT_SHA'
   
-  # Deploy to Cloud Run
+  # 4. Deploy to Cloud Run
   - name: 'gcr.io/google.com/cloudsdktool/cloud-sdk'
     entrypoint: gcloud
     args:
@@ -19,7 +25,7 @@ steps:
       - 'deploy'
       - '${_SERVICE_NAME}'
       - '--image'
-      - 'gcr.io/$PROJECT_ID/${_SERVICE_NAME}:$COMMIT_SHA'
+      - 'us-central1-docker.pkg.dev/$PROJECT_ID/placementapp-repo/${_SERVICE_NAME}:$COMMIT_SHA'
       - '--region'
       - '${_REGION}'
       - '--platform'
@@ -32,22 +38,47 @@ steps:
       - '--cpu'
       - '${_CPU}'
 
-# Store images in Google Container Registry
+# Store images in Artifact Registry
 images:
-  - 'gcr.io/$PROJECT_ID/${_SERVICE_NAME}:$COMMIT_SHA'
+  - 'us-central1-docker.pkg.dev/$PROJECT_ID/placementapp-repo/${_SERVICE_NAME}:$COMMIT_SHA'
 
-# Timeout for the build
-timeout: '1200s'
-
-# Logging configuration
 options:
   logging: CLOUD_LOGGING_ONLY
 
-# Substitutions for customizable values
 substitutions:
   _DOCKER_IMAGE: 'rajesharigala/placementapp:v1-amd64'
-  _SERVICE_NAME: 'PlacementApp'
+  _SERVICE_NAME: 'placementapp' # Best practice: use lowercase for service names
   _REGION: 'us-central1'
   _PORT: '8080'
   _MEMORY: '512Mi'
   _CPU: '1'
+
+timeout: '1200s'
+
+# Create the Artifact Registry repository (run this command once before the first build)
+# gcloud artifacts repositories create placementapp-repo \
+#     --repository-format=docker \
+#     --location=us-central1 \
+#     --description="Repository for PlacementApp images" \
+#     --project=cicd-placementapp-github
+
+# Enable necessary APIs (run this command once before the first build)
+# gcloud services enable cloudbuild.googleapis.com \
+#     run.googleapis.com \
+#     artifactregistry.googleapis.com \
+#     --project=cicd-placementapp-github
+
+# Grant Cloud Build permissions to deploy to Cloud Run (run these commands once before the first build)
+# # Get your project number
+# PROJECT_NUMBER=$(gcloud projects describe cicd-placementapp-github --format='value(projectNumber)')
+# echo $PROJECT_NUMBER
+
+# # 1. Grant Cloud Run Admin role
+# gcloud projects add-iam-policy-binding cicd-placementapp-github \
+#     --member="serviceAccount:$PROJECT_NUMBER@cloudbuild.gserviceaccount.com" \
+#     --role="roles/run.admin"
+
+# # 2. Grant IAM Service Account User role (needed to act as the runtime identity)
+# gcloud projects add-iam-policy-binding cicd-placementapp-github \
+#     --member="serviceAccount:$PROJECT_NUMBER@cloudbuild.gserviceaccount.com" \
+#     --role="roles/iam.serviceAccountUser"
