@@ -45,9 +45,9 @@ options:
 
 # Substitutions for customizable values
 substitutions:
-  _DOCKER_IMAGE: 'rajesharigala/node-web-app:v1-amd64'
-  _SERVICE_NAME: 'nodejs-app'
+  _DOCKER_IMAGE: 'rajesharigala/placementapp:v1-amd64'
+  _SERVICE_NAME: 'PlacementApp'
   _REGION: 'us-central1'
   _PORT: '8080'
   _MEMORY: '512Mi'
-  _CPU: '1' 
+  _CPU: '1'
